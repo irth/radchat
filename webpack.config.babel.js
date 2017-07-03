@@ -34,4 +34,12 @@ export default {
   },
   plugins: [new HtmlWebpackPlugin({ template: codedir('index.html.ejs') })],
   resolve: { extensions: ['.js', '.jsx'] },
+  devServer: {
+    proxy: {
+      '/socket.io/**': {
+        target: 'ws://localhost:3000',
+        ws: true,
+      },
+    },
+  },
 };
