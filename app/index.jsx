@@ -1,10 +1,19 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import IO from 'socket.io-client';
+
+import { Provider } from 'mobx-react';
 
 import App from './components/App';
+import AppState from './state';
 
-const sock = IO.connect();
-sock.on('news', () => alert('hurray'));
+import runClient from './client';
 
-ReactDOM.render(<App />, document.getElementById('app'));
+const state = new AppState();
+window.state = state;
+
+runClient(state);
+
+ReactDOM.render(
+  <Provider state={state}><App /></Provider>,
+  document.getElementById('app'),
+);
