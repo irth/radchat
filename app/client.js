@@ -19,14 +19,14 @@ class Client {
       fetch(`${API_URL}/auth/google`, {
         method: 'POST',
         body: JSON.stringify({
-          authToken: this.state.googleAuthToken,
+          auth_token: this.state.googleAuthToken,
         }),
       })
         .then(r => r.json())
         .then((r) => {
-          this.state.authToken = r.authToken;
-          this.fetchProfile();
-          this.connectWebsocket();
+          this.state.setAuthToken(r.auth_token);
+          this.state.setUser(r.user);
+          this.state.setFirstTimeSetup(r.first_time);
         });
     }
   }

@@ -2,9 +2,12 @@ import React from 'react';
 
 import { inject, observer } from 'mobx-react';
 
+import SetupDialog from './SetupDialog';
+
 export default inject('state')(
   observer(({ state }) =>
     (<div>
+      <SetupDialog open />
       <div>
         hello, {state.user.display_name}. You are {state.connectionState}.
       </div>

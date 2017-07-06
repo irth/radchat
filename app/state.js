@@ -10,6 +10,7 @@ export class ConnectionState {
 export default class AppState {
   @observable authToken = null;
   @observable googleAuthToken = null;
+  @observable firstTimeSetup = false;
 
   @computed
   get loggedIn() {
@@ -24,6 +25,11 @@ export default class AppState {
   @action
   setGoogleAuthToken(token) {
     this.googleAuthToken = token;
+  }
+
+  @action
+  setFirstTimeSetup(setup) {
+    this.firstTimeSetup = setup;
   }
 
   @observable connectionState = ConnectionState.DISCONNECTED;
