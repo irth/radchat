@@ -1,5 +1,7 @@
 import { autorun } from 'mobx';
 
+import { ConnectionState } from './state';
+
 const API_URL = 'http://localhost:3000';
 const WS_URL = 'ws://localhost:3000/socket';
 
@@ -8,6 +10,7 @@ class Client {
     this.state = state;
     this.sock = null;
     this.connectDisposer = autorun(() => this.connect());
+    this.queueDisposer = () => {};
   }
 
   connect() {
@@ -29,10 +32,41 @@ class Client {
   }
 
   connectWebsocket() {
+    this.state.setConnectionState(ConnectionState.CONNECTING);
     this.sock = new WebSocket(WS_URL);
     const s = this.sock;
     s.onmessage = this.onSocketMessage.bind(this);
-    s.onopen = () => s.send(JSON.stringify({ type: 'auth', authToken: this.state.authToken }));
+    s.onopen = this.onSocketOpen.bind(this);
+    s.onerror = () => this.state.setConnectionState(ConnectionState.ERROR);
+  }
+
+  onSocketOpen() {
+    this.sock.send(JSON.stringify({ type: 'auth', authToken: this.state.authToken }));
+  }
+
+  onAuthorized() {
+    this.sock.send(JSON.stringify({ type: 'getFriends' }));
+    this.queueDisposer = autorun(() => {
+      if (this.state.changeQueue.length > 0) {
+        this.execChange(this.state.changeQueue.pop());
+      }
+    });
+  }
+
+  execChange(ch) {
+    switch (ch.type) {
+      case 'change':
+        this.sock.send(
+          JSON.stringify({
+            type: 'inputBufferUpdate',
+            id: ch.id,
+            value: ch.val,
+          }),
+        );
+        break;
+      default:
+        break;
+    }
   }
 
   onSocketMessage(event) {
@@ -40,7 +74,14 @@ class Client {
     console.log(data);
     switch (data.type) {
       case 'auth':
-        this.state.setConnectionState(true);
+        this.state.setConnectionState(ConnectionState.CONNECTED);
+        this.onAuthorized();
+        break;
+      case 'friendsList':
+        this.state.setFriends(data.friends);
+        break;
+      case 'inputBufferUpdate':
+        console.log(data);
         break;
       default:
         break;
