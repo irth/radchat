@@ -1,7 +1,10 @@
 import React from 'react';
+import { observable } from 'mobx';
 import { inject, observer } from 'mobx-react';
 
 import glamorous from 'glamorous';
+
+import { API_URL } from '../state';
 
 const DialogOverlay = glamorous.div({
   position: 'fixed',
@@ -61,7 +64,7 @@ const Input = glamorous.input({
   background: 'white',
   border: 'none',
   borderBottom: 'solid 1px gray',
-  marginTop: '.5em',
+  marginTop: '.1em',
   paddingBottom: 'calc(1px + .5em)',
   transition: 'all .5s',
   ':focus': {
@@ -69,6 +72,13 @@ const Input = glamorous.input({
     borderBottom: 'solid 2px teal',
     paddingBottom: '.5em',
   },
+});
+
+const Error = glamorous.div({
+  color: 'red',
+  textAlign: 'center',
+  marginTop: '.7em',
+  fontSize: '90%',
 });
 
 const Label = glamorous.label({
@@ -103,11 +113,39 @@ const DialogAction = glamorous.a(({ color, disabled }) => ({
     }
     : {},
 }));
+@inject('state')
+@observer
+export default class SetupDialog extends React.Component {
+  @observable displayName = this.props.state.user.display_name;
+  @observable username = '';
+  @observable error = null;
 
-export default inject('state')(
-  observer(
-    ({ state }) =>
-      state.firstTimeSetup &&
+  save() {
+    fetch(`${API_URL}/profile/me`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        auth_token: this.props.state.authToken,
+        display_name: this.displayName,
+        username: this.username,
+      }),
+    }).then((r) => {
+      console.log(r.status);
+      if (r.status === 422) {
+        this.error = 'constraint';
+      } else if (r.status !== 200) {
+        this.error = 'unknown';
+      } else {
+        r.json().then((j) => {
+          this.props.state.setUser(j);
+          this.props.state.setFirstTimeSetup(true);
+        });
+      }
+    });
+  }
+
+  render() {
+    return (
+      !this.props.state.firstTimeSetupComplete &&
       <DialogOverlay>
         <Dialog>
           <DialogContent>
@@ -120,19 +158,35 @@ export default inject('state')(
               <Input
                 id="display_name"
                 placeholder="Display name"
-                defaultValue={state.user.display_name}
+                onChange={(e) => {
+                  this.displayName = e.target.value;
+                }}
+                defaultValue={this.props.state.user.display_name}
               />
               <Label for="username">
                 Your very own username that will allow your friends to find you:
+                {this.error === 'constraint' && <Error>this username has been taken</Error>}
               </Label>
-              <Input id="username" placeholder="Username" />
+              <Input
+                id="username"
+                placeholder="Username"
+                onChange={(e) => {
+                  this.username = e.target.value;
+                  this.error = null;
+                }}
+              />
             </div>
+            {this.error === 'unknown' &&
+              <Error>Something went wrong. Please try again later.</Error>}
           </DialogContent>
           <DialogActions>
-            <DialogAction color="#333">Log out</DialogAction>
-            <DialogAction>Save</DialogAction>
+            <DialogAction color="#333" onClick={() => this.props.state.logOut()}>
+              Log out
+            </DialogAction>
+            <DialogAction onClick={() => this.save()}>Save</DialogAction>
           </DialogActions>
         </Dialog>
-      </DialogOverlay>,
-  ),
-);
+      </DialogOverlay>
+    );
+  }
+}

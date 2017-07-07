@@ -5,6 +5,8 @@ import GoogleLogin from 'react-google-login';
 
 import glamorous from 'glamorous';
 
+import { ConnectionState } from '../state';
+
 const CenteredDiv = glamorous.div({
   maxWidth: 960,
   marginLeft: 'auto',
@@ -30,6 +32,43 @@ const TweetContainer = glamorous.blockquote({
 
 const Desc = glamorous.div({ fontSize: '120%', margin: '1em' });
 
+const ConnectionStateDisplay = ({ state }) => {
+  let color;
+  switch (state) {
+    case ConnectionState.ERROR:
+    case ConnectionState.LOGIN_FAILED:
+      color = 'red';
+      break;
+    default:
+      color = 'teal';
+      break;
+  }
+
+  let message;
+  switch (state) {
+    case ConnectionState.LOGGING_IN:
+      message = 'Logging in...';
+      break;
+    case ConnectionState.LOGIN_FAILED:
+      message = 'Login failed.';
+      break;
+    case ConnectionState.CONNECTING:
+      message = 'Connecting...';
+      break;
+    case ConnectionState.ERROR:
+      message = 'Connecting failed.';
+      break;
+    default:
+      message = null;
+  }
+
+  return message != null
+    ? <glamorous.Div color={color} marginBottom=".5em">
+      {message}
+    </glamorous.Div>
+    : null;
+};
+
 const MadChat = () => <glamorous.Span fontWeight="400">MadChat</glamorous.Span>;
 
 export default inject('state')(
@@ -50,13 +89,14 @@ export default inject('state')(
       <Desc>
         Well, that&rsquo;s what <MadChat /> is.
       </Desc>
+      <ConnectionStateDisplay state={state.connectionState} />
       <GoogleLogin
         clientId="41009918331-5jiap87h9iaaag4qi597siluelvq3706.apps.googleusercontent.com"
         buttonText="Login via Google"
         onSuccess={(r) => {
-          state.setGoogleAuthToken(r.tokenId);
+          state.logIn(r.tokenId);
         }}
-        onFailure={() => {}}
+        onFailure={() => state.setConnectionState(ConnectionState.LOGIN_FAILED)}
       />
     </CenteredDiv>),
   ),

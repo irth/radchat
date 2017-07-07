@@ -6,6 +6,7 @@ import Chat from './Chat';
 
 export default inject('state')(
   observer(({ state }) => {
+    console.log(state.loggedIn);
     if (!state.loggedIn) {
       return <Landing />;
     }

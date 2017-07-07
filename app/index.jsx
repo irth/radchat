@@ -5,20 +5,19 @@ import { Provider } from 'mobx-react';
 
 import { Div } from 'glamorous';
 
+import DevTools from 'mobx-react-devtools';
+
 import App from './components/App';
 import AppState from './state';
 
-import runClient from './client';
-
 const state = new AppState();
 window.state = state;
-
-runClient(state);
 
 ReactDOM.render(
   <Provider state={state}>
     <Div fontFamily="Roboto" fontWeight={300}>
       <App />
+      <DevTools />
     </Div>
   </Provider>,
   document.getElementById('app'),

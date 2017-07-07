@@ -5,7 +5,7 @@ import { ConnectionState } from './state';
 const API_URL = 'http://localhost:3000';
 const WS_URL = 'ws://localhost:3000/socket';
 
-class Client {
+export class Client {
   constructor(state) {
     this.state = state;
     this.sock = null;
@@ -47,13 +47,13 @@ class Client {
   onAuthorized() {
     this.sock.send(JSON.stringify({ type: 'getFriends' }));
     this.queueDisposer = autorun(() => {
-      if (this.state.changeQueue.length > 0) {
-        this.execChange(this.state.changeQueue.pop());
+      if (this.state.workQueue.length > 0) {
+        this.execWork(this.state.workQueue.pop());
       }
     });
   }
 
-  execChange(ch) {
+  execWork(ch) {
     switch (ch.type) {
       case 'change':
         this.sock.send(
@@ -63,6 +63,16 @@ class Client {
             value: ch.val,
           }),
         );
+        break;
+      case 'updateProfile':
+        fetch(`${API_URL}/profile/me`, {
+          method: 'PATCH',
+          body: JSON.stringify(ch.profile),
+        }).then((r) => {
+          if (r.status === 422) {
+            this.state.setWorkResult();
+          }
+        });
         break;
       default:
         break;
@@ -102,6 +112,6 @@ class Client {
   }
 }
 
-export default function runClient(state) {
-  return new Client(state);
+export default function runClient() {
+  // return new Client(state);
 }

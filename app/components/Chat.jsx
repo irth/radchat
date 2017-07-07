@@ -7,7 +7,7 @@ import SetupDialog from './SetupDialog';
 export default inject('state')(
   observer(({ state }) =>
     (<div>
-      <SetupDialog open />
+      <SetupDialog />
       <div>
         hello, {state.user.display_name}. You are {state.connectionState}.
       </div>
