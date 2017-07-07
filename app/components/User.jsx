@@ -8,38 +8,57 @@ const flex = css({
   flexDirection: 'row',
   alignItems: 'center',
   justifyContent: 'space-between',
-  padding: '.5em 1em',
+  paddingTop: '.5em',
+  paddingLeft: '1em',
+  paddingBottom: '.5em',
 });
 
 const DisplayName = glamorous.div({ fontWeight: 'normal' });
 const Username = glamorous.div();
 
-const Status = glamorous.div(({ status }) => {
+export const Status = glamorous.div(({ status }) => {
   let color;
+  let borderColor;
   switch (status) {
     case 'available':
-      color = 'green';
+      color = 'limegreen';
+      borderColor = 'darkgreen';
       break;
     case 'busy':
       color = 'red';
+      borderColor = 'darkred';
       break;
     case 'away':
       color = 'yellow';
+      borderColor = 'orange';
       break;
     default:
       color = 'gray';
+      borderColor = '#333';
   }
   return {
     width: '.7em',
     height: '.7em',
-    borderRadius: '.35em',
+    borderRadius: '.7em',
+    border: `1px solid ${borderColor}`,
     background: color,
-    margin: '1em',
     marginRight: 0,
+    display: 'inline-block',
   };
 });
 
-export default observer(({ className, user }) =>
+const ClickableStatus = glamorous.div(({ clickable }) => ({
+  ':hover': clickable && {
+    background: '#444',
+  },
+  background: clickable && '#333',
+  cursor: clickable && 'pointer',
+  padding: '.5em .25em',
+  margin: '.5em .75em',
+  borderRadius: 2,
+}));
+
+export default observer(({ className, user, onClickStatus }) =>
   (<div className={`${className} ${flex}`}>
     <div>
       <DisplayName>
@@ -49,6 +68,8 @@ export default observer(({ className, user }) =>
         @{user.username}
       </Username>
     </div>
-    <Status status={user.status} />
+    <ClickableStatus clickable={onClickStatus != null} onClick={onClickStatus}>
+      <Status status={user.status} />
+    </ClickableStatus>
   </div>),
 );

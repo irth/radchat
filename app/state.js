@@ -33,7 +33,7 @@ class SocketConnection {
       connected: [],
       connectionError: [],
       inputBufferUpdate: [],
-      friendsList: [],
+      statusUpdate: [],
     };
   }
 
@@ -69,23 +69,10 @@ class SocketConnection {
     this.callHandlers('connectionError', e);
   }
 
-  requestFriendsList() {
-    this.sock.send(JSON.stringify({ type: 'getFriends' }));
-  }
-
   onSocketMessage(event) {
     const data = JSON.parse(event.data);
     console.log(data);
-    switch (data.type) {
-      case 'friendsList':
-        this.callHandlers('friendsList', data.friends);
-        break;
-      case 'inputBufferUpdate':
-        this.callHandlers('inputBufferUpdate', data);
-        break;
-      default:
-        break;
-    }
+    this.callHandlers(data.type, data);
   }
 }
 
@@ -142,6 +129,7 @@ export default class AppState {
         this.setAuthToken(r.auth_token);
         this.setUser(r.user);
         this.setConnectionState(ConnectionState.LOGGED_IN);
+        this.fetchFriends();
         if (!r.first_time) this.connect();
       })
       .catch(() => {
@@ -159,11 +147,12 @@ export default class AppState {
 
     if (!this.isLoggedIn) this.setConnectionState(ConnectionState.LOGGING_IN);
 
-    fetch(`${API_URL}/profile/me?auth_token=${this.authToken}`).then((r) => {
+    fetch(`${API_URL}/profile?auth_token=${this.authToken}`).then((r) => {
       if (r.status === 200) {
         r.json().then((data) => {
           this.setUser(data);
           if (!this.loggedIn) this.setConnectionState(ConnectionState.LOGGED_IN);
+          this.fetchFriends();
           if (this.firstTimeSetupComplete) this.connect();
         });
       } else {
@@ -192,11 +181,9 @@ export default class AppState {
 
     this.sock.on('connected', () => {
       this.setConnectionState(ConnectionState.CONNECTED);
-      this.sock.requestFriendsList();
     });
     this.sock.on('connectionError', () => this.setConnectionState(ConnectionState.WS_ERROR));
-    this.sock.on('friendsList', l => this.setFriends(l));
-
+    this.sock.on('statusUpdate', data => this.setFriendStatus(data.id, data.status));
     this.sock.connect();
   }
 
@@ -208,6 +195,13 @@ export default class AppState {
   }
 
   @observable friends = [];
+
+  @action
+  fetchFriends() {
+    fetch(`${API_URL}/friends?auth_token=${this.authToken}`)
+      .then(r => r.json())
+      .then(j => this.setFriends(j.friends));
+  }
 
   @action
   addFriend(friend) {
@@ -224,16 +218,22 @@ export default class AppState {
     this.friends = friends;
   }
 
-  @observable workQueue = [];
-  @observable workResult = {};
-
   @action
-  setInput(id, val) {
-    this.workQueue.push({ type: 'change', id, val });
+  setFriendStatus(id, status) {
+    const friend = this.friends.find(x => x.id === id);
+    if (friend != null) friend.status = status;
   }
 
   @action
-  updateProfile(displayName = null, username = null) {
-    this.workQueue.push({ type: 'updateProfile', display_name: displayName, username });
+  setStatus(status) {
+    fetch(`${API_URL}/profile`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        auth_token: this.authToken,
+        status,
+      }),
+    }).then((r) => {
+      if (r.status === 200) r.json().then(j => this.setUser(j));
+    });
   }
 }
