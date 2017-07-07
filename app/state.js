@@ -1,4 +1,5 @@
 import { observable, action, computed } from 'mobx';
+import { persist } from 'mobx-persist';
 
 export const API_URL = 'http://localhost:3000';
 export const WS_URL = 'ws://localhost:3000/socket';
@@ -10,20 +11,100 @@ export class ConnectionState {
   static DISCONNECTED = 'DISCONNECTED';
   static CONNECTING = 'CONNECTING';
   static CONNECTED = 'CONNECTED';
-  static ERROR = 'ERROR';
+  static WS_ERROR = 'WS_ERROR';
 
   static isLoggedIn(state) {
     return (
-      [ConnectionState.LOGGED_IN, ConnectionState.CONNECTING, ConnectionState.CONNECTED].indexOf(
-        state,
-      ) !== -1
+      [
+        ConnectionState.LOGGED_IN,
+        ConnectionState.CONNECTING,
+        ConnectionState.CONNECTED,
+        ConnectionState.WS_ERROR,
+      ].indexOf(state) !== -1
     );
   }
 }
 
+class SocketConnection {
+  constructor(authToken) {
+    this.sock = null;
+    this.authToken = authToken;
+    this.eventHandlers = {
+      connected: [],
+      connectionError: [],
+      inputBufferUpdate: [],
+      friendsList: [],
+    };
+  }
+
+  on(ev, handler) {
+    if (this.eventHandlers[ev] != null) {
+      this.eventHandlers[ev].push(handler);
+      return () => {
+        const h = this.eventHandlers[ev];
+        const i = h.indexOf(handler);
+        if (i > -1) h.splice(i, 1);
+      };
+    }
+    return null;
+  }
+
+  callHandlers(ev, ...args) {
+    this.eventHandlers[ev].forEach(handler => handler(...args));
+  }
+
+  connect() {
+    this.sock = new WebSocket(`${WS_URL}?auth_token=${this.authToken}`);
+    const s = this.sock;
+    s.onmessage = this.onSocketMessage.bind(this);
+    s.onopen = this.onSocketOpen.bind(this);
+    s.onerror = this.onSocketError.bind(this);
+  }
+
+  onSocketOpen() {
+    this.callHandlers('connected');
+  }
+
+  onSocketError(e) {
+    this.callHandlers('connectionError', e);
+  }
+
+  requestFriendsList() {
+    this.sock.send(JSON.stringify({ type: 'getFriends' }));
+  }
+
+  onSocketMessage(event) {
+    const data = JSON.parse(event.data);
+    console.log(data);
+    switch (data.type) {
+      case 'friendsList':
+        this.callHandlers('friendsList', data.friends);
+        break;
+      case 'inputBufferUpdate':
+        this.callHandlers('inputBufferUpdate', data);
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 export default class AppState {
-  @observable authToken = null;
-  @observable firstTimeSetupComplete = false;
+  @persist
+  @observable
+  authToken = null;
+
+  /* state.hydrated is a workaround for https://github.com/anthonyjgrove/react-google-login/issues/86 */
+  @observable hydrated = false;
+  @action
+  setHydrated() {
+    this.hydrated = true;
+  }
+
+  @computed
+  get firstTimeSetupComplete() {
+    return this.user && this.user.username;
+  }
 
   @computed
   get loggedIn() {
@@ -33,11 +114,6 @@ export default class AppState {
   @action
   setAuthToken(token) {
     this.authToken = token;
-  }
-
-  @action
-  setFirstTimeSetup(setup) {
-    this.firstTimeSetupComplete = setup;
   }
 
   @action
@@ -65,15 +141,35 @@ export default class AppState {
       .then((r) => {
         this.setAuthToken(r.auth_token);
         this.setUser(r.user);
-        this.setFirstTimeSetup(!r.first_time);
         this.setConnectionState(ConnectionState.LOGGED_IN);
         if (!r.first_time) this.connect();
       })
-      .catch((e) => {
-        console.log('fail', e);
-        this.setAuthToken(null);
+      .catch(() => {
+        this.logOut();
         this.setConnectionState(ConnectionState.LOGIN_FAILED);
       });
+  }
+
+  @action
+  checkLogin() {
+    if (this.authToken == null) {
+      this.logOut();
+      return;
+    }
+
+    if (!this.isLoggedIn) this.setConnectionState(ConnectionState.LOGGING_IN);
+
+    fetch(`${API_URL}/profile/me?auth_token=${this.authToken}`).then((r) => {
+      if (r.status === 200) {
+        r.json().then((data) => {
+          this.setUser(data);
+          if (!this.loggedIn) this.setConnectionState(ConnectionState.LOGGED_IN);
+          if (this.firstTimeSetupComplete) this.connect();
+        });
+      } else {
+        this.logOut();
+      }
+    });
   }
 
   @action
@@ -86,38 +182,22 @@ export default class AppState {
 
   @action
   connect() {
-    this.setConnectionState(ConnectionState.CONNECTING);
-    this.sock = new WebSocket(WS_URL);
-    const s = this.sock;
-    s.onmessage = this.onSocketMessage.bind(this);
-    s.onopen = this.onSocketOpen.bind(this);
-    s.onerror = () => this.setConnectionState(ConnectionState.ERROR);
-  }
-
-  onSocketOpen() {
-    this.sock.send(JSON.stringify({ type: 'auth', authToken: this.authToken }));
-  }
-
-  onAuthorized() {
-    this.sock.send(JSON.stringify({ type: 'getFriends' }));
-  }
-
-  onSocketMessage(event) {
-    const data = JSON.parse(event.data);
-    console.log(data);
-    switch (data.type) {
-      case 'auth':
-        this.setConnectionState(ConnectionState.CONNECTED);
-        this.onAuthorized();
-        break;
-      case 'friendsList':
-        this.setFriends(data.friends);
-        break;
-      case 'inputBufferUpdate':
-        break;
-      default:
-        break;
+    if (!this.loggedIn) {
+      this.checkLogin();
+      return;
     }
+    this.setConnectionState(ConnectionState.CONNECTING);
+
+    this.sock = new SocketConnection(this.authToken);
+
+    this.sock.on('connected', () => {
+      this.setConnectionState(ConnectionState.CONNECTED);
+      this.sock.requestFriendsList();
+    });
+    this.sock.on('connectionError', () => this.setConnectionState(ConnectionState.WS_ERROR));
+    this.sock.on('friendsList', l => this.setFriends(l));
+
+    this.sock.connect();
   }
 
   @observable user = {};

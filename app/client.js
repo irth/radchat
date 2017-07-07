@@ -37,7 +37,7 @@ export class Client {
     const s = this.sock;
     s.onmessage = this.onSocketMessage.bind(this);
     s.onopen = this.onSocketOpen.bind(this);
-    s.onerror = () => this.state.setConnectionState(ConnectionState.ERROR);
+    s.onerror = () => this.state.setConnectionState(ConnectionState.WS_ERROR);
   }
 
   onSocketOpen() {

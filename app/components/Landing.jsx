@@ -35,7 +35,7 @@ const Desc = glamorous.div({ fontSize: '120%', margin: '1em' });
 const ConnectionStateDisplay = ({ state }) => {
   let color;
   switch (state) {
-    case ConnectionState.ERROR:
+    case ConnectionState.WS_ERROR:
     case ConnectionState.LOGIN_FAILED:
       color = 'red';
       break;
@@ -55,7 +55,7 @@ const ConnectionStateDisplay = ({ state }) => {
     case ConnectionState.CONNECTING:
       message = 'Connecting...';
       break;
-    case ConnectionState.ERROR:
+    case ConnectionState.WS_ERROR:
       message = 'Connecting failed.';
       break;
     default:
@@ -90,14 +90,17 @@ export default inject('state')(
         Well, that&rsquo;s what <MadChat /> is.
       </Desc>
       <ConnectionStateDisplay state={state.connectionState} />
-      <GoogleLogin
-        clientId="41009918331-5jiap87h9iaaag4qi597siluelvq3706.apps.googleusercontent.com"
-        buttonText="Login via Google"
-        onSuccess={(r) => {
-          state.logIn(r.tokenId);
-        }}
-        onFailure={() => state.setConnectionState(ConnectionState.LOGIN_FAILED)}
-      />
+      {/* state.hydrated is a workaround for https://github.com/anthonyjgrove/react-google-login/issues/86 */}
+      {state.authToken == null &&
+        state.hydrated &&
+        <GoogleLogin
+          clientId="41009918331-5jiap87h9iaaag4qi597siluelvq3706.apps.googleusercontent.com"
+          buttonText="Login via Google"
+          onSuccess={(r) => {
+            state.logIn(r.tokenId);
+          }}
+          onFailure={() => state.setConnectionState(ConnectionState.LOGIN_FAILED)}
+        />}
     </CenteredDiv>),
   ),
 );
