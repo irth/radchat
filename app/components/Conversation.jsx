@@ -55,7 +55,7 @@ export default class Conversation extends React.Component {
         <ChatInput
           onSubmit={(msg) => {
             if (this.messages != null) this.messages.wrappedInstance.enableAutoScroll();
-            this.props.state.sendMessage(this.props.state.activeChat, msg);
+            if (msg.trim().length > 0) { this.props.state.sendMessage(this.props.state.activeChat, msg); }
           }}
           onChange={msg => this.props.state.setInput(this.props.state.activeChat, msg)}
         />
