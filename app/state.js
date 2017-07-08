@@ -220,8 +220,12 @@ export default class AppState {
 
   @action
   setFriendStatus(id, status) {
-    const friend = this.friends.find(x => x.id === id);
-    if (friend != null) friend.status = status;
+    if (id === this.user.id) {
+      this.user.status = status;
+    } else {
+      const friend = this.friends.find(x => x.id === id);
+      if (friend != null) friend.status = status;
+    }
   }
 
   @action
