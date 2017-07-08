@@ -16,6 +16,7 @@ export default class ChatInput extends React.Component {
     if (this.el != null) this.el.value = '';
     this.el.focus();
     this.input = '';
+    if (this.props.onChange != null) this.props.onChange(this.input);
   }
 
   render() {
@@ -38,7 +39,13 @@ export default class ChatInput extends React.Component {
           }}
           autoFocus
           innerRef={el => (this.el = el)}
-          onChange={e => (this.input = e.target.value)}
+          onKeyDown={(e) => {
+            if (e.keyCode === 13) this.onSubmit();
+          }}
+          onChange={(e) => {
+            this.input = e.target.value;
+            if (this.props.onChange != null) this.props.onChange(this.input);
+          }}
         />
         <glamorous.Div
           role="button"

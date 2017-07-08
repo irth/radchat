@@ -2,6 +2,7 @@ import React from 'react';
 import { inject, observer } from 'mobx-react';
 import glamorous from 'glamorous';
 
+import Messages from './Messages';
 import ChatInput from './ChatInput';
 
 const Wrapper = glamorous.div({
@@ -41,8 +42,6 @@ const Title = glamorous.div({
   fontWeight: 400,
 });
 
-const Messages = () => <glamorous.Div flex={2}>test</glamorous.Div>;
-
 @inject('state')
 @observer
 export default class Conversation extends React.Component {
@@ -55,6 +54,7 @@ export default class Conversation extends React.Component {
         <Messages />
         <ChatInput
           onSubmit={msg => this.props.state.sendMessage(this.props.state.activeChat, msg)}
+          onChange={msg => this.props.state.setInput(this.props.state.activeChat, msg)}
         />
       </Wrapper>
       : <NoConversation />;

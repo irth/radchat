@@ -79,6 +79,10 @@ class SocketConnection {
     console.log(data);
     this.callHandlers(data.type, data);
   }
+
+  setInput(id, value) {
+    this.sock.send(JSON.stringify({ id, value }));
+  }
 }
 
 export default class AppState {
@@ -201,6 +205,7 @@ export default class AppState {
     });
     this.sock.on('connectionError', () => this.setConnectionState(ConnectionState.WS_ERROR));
     this.sock.on('statusUpdate', data => this.setFriendStatus(data.id, data.status));
+    this.sock.on('inputBufferUpdate', data => this.setRemoteInput(data.id, data.value));
     this.sock.on('message', data => this.addMessage(data.from, data.message));
     this.sock.connect();
   }
@@ -261,16 +266,24 @@ export default class AppState {
 
   messages = observable.map({});
 
+  @computed
+  get activeChatMessages() {
+    if (this.activeChat != null && this.messages.has(this.activeChat.toString())) {
+      return this.messages.get(this.activeChat.toString());
+    }
+    return [];
+  }
+
   @action
   sendMessage(id, message) {
-    const messageId = uniqueId('msg');
+    const messageId = uniqueId('msg-sent-');
     if (!this.messages.has(id.toString())) {
       this.messages.set(id.toString(), []);
     }
 
     this.messages
       .get(id.toString())
-      .push({ messageId, sender: this.user.id, target: id, sent: false, message });
+      .push({ messageId, from: this.user.id, target: id, sent: false, message });
 
     fetch(`${API_URL}/send`, {
       method: 'POST',
@@ -283,12 +296,32 @@ export default class AppState {
     if (!this.messages.has(id.toString())) {
       this.messages.set(id.toString(), []);
     }
-    this.messages.get(id.toString()).push({ sender: id, target: this.user.id, message });
+    this.messages
+      .get(id.toString())
+      .push({ messageId: uniqueId('msg-received-'), from: id, target: this.user.id, message });
   }
 
   @action
   markMessageAsSent(id, messageId) {
     const msg = this.messages.get(id.toString()).find(m => m.messageId === messageId);
     if (msg != null) msg.sent = true;
+  }
+
+  remoteInput = observable.map({});
+
+  @action
+  setRemoteInput(id, message) {
+    this.remoteInput.set(id.toString(), message);
+  }
+
+  @computed
+  get activeChatRemoteInput() {
+    if (this.activeChat == null) return '';
+    return this.remoteInput.get(this.activeChat.toString()) || '';
+  }
+
+  @action
+  setInput(id, message) {
+    this.sock.setInput(id, message);
   }
 }
