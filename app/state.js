@@ -1,6 +1,8 @@
 import { observable, action, computed } from 'mobx';
 import { persist } from 'mobx-persist';
 
+import uniqueId from 'lodash.uniqueid';
+
 export const API_URL = 'http://localhost:3000';
 export const WS_URL = 'ws://localhost:3000/socket';
 
@@ -34,6 +36,7 @@ class SocketConnection {
       connectionError: [],
       inputBufferUpdate: [],
       statusUpdate: [],
+      message: [],
     };
   }
 
@@ -50,7 +53,9 @@ class SocketConnection {
   }
 
   callHandlers(ev, ...args) {
-    this.eventHandlers[ev].forEach(handler => handler(...args));
+    if (this.eventHandlers[ev] != null) {
+      this.eventHandlers[ev].forEach(handler => handler(...args));
+    }
   }
 
   connect() {
@@ -113,6 +118,18 @@ export default class AppState {
   @action
   setConnectionState(state) {
     this.connectionState = state;
+  }
+
+  @observable activeChat = null;
+  @computed
+  get activeChatUser() {
+    const user = this.friends.find(f => f.id === this.activeChat);
+    return user || {};
+  }
+
+  @action
+  setActiveChat(userId) {
+    this.activeChat = userId;
   }
 
   @action
@@ -184,6 +201,7 @@ export default class AppState {
     });
     this.sock.on('connectionError', () => this.setConnectionState(ConnectionState.WS_ERROR));
     this.sock.on('statusUpdate', data => this.setFriendStatus(data.id, data.status));
+    this.sock.on('message', data => this.addMessage(data.from, data.message));
     this.sock.connect();
   }
 
@@ -239,5 +257,38 @@ export default class AppState {
     }).then((r) => {
       if (r.status === 200) r.json().then(j => this.setUser(j));
     });
+  }
+
+  messages = observable.map({});
+
+  @action
+  sendMessage(id, message) {
+    const messageId = uniqueId('msg');
+    if (!this.messages.has(id.toString())) {
+      this.messages.set(id.toString(), []);
+    }
+
+    this.messages
+      .get(id.toString())
+      .push({ messageId, sender: this.user.id, target: id, sent: false, message });
+
+    fetch(`${API_URL}/send`, {
+      method: 'POST',
+      body: JSON.stringify({ auth_token: this.authToken, id, message }),
+    });
+  }
+
+  @action
+  addMessage(id, message) {
+    if (!this.messages.has(id.toString())) {
+      this.messages.set(id.toString(), []);
+    }
+    this.messages.get(id.toString()).push({ sender: id, target: this.user.id, message });
+  }
+
+  @action
+  markMessageAsSent(id, messageId) {
+    const msg = this.messages.get(id.toString()).find(m => m.messageId === messageId);
+    if (msg != null) msg.sent = true;
   }
 }

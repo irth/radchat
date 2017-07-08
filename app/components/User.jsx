@@ -58,8 +58,8 @@ const ClickableStatus = glamorous.div(({ clickable }) => ({
   borderRadius: 2,
 }));
 
-export default observer(({ className, user, onClickStatus }) =>
-  (<div className={`${className} ${flex}`}>
+export default observer(({ className, user, onClick, onClickStatus }) =>
+  (<div className={`${className} ${flex}`} {...(onClick != null ? { onClick, role: 'button' } : {})}>
     <div>
       <DisplayName>
         {user.display_name}

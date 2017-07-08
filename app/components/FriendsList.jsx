@@ -27,7 +27,10 @@ const Friend = glamorous(User)(({ active }) => ({
   color: active && 'black',
 }));
 
-const Top = glamorous.div({ background: 'black' });
+const Top = glamorous.div({
+  background: 'black',
+  marginBottom: '.4em',
+});
 
 const Filter = glamorous.input({
   width: '100%',
@@ -111,7 +114,11 @@ export default class FriendsList extends React.Component {
           ? <FriendsListUl>
             {this.friends.map(f =>
                 (<li key={f.id}>
-                  <Friend user={f} />
+                  <Friend
+                    active={f.id === this.props.state.activeChat}
+                    onClick={() => this.props.state.setActiveChat(f.id)}
+                    user={f}
+                  />
                 </li>),
               )}
           </FriendsListUl>
