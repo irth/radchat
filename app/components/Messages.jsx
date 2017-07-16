@@ -78,10 +78,10 @@ export default class Messages extends React.Component {
       >
         {this.props.state.activeChatMessages.map(m =>
           (<glamorous.Div
-            key={m.messageId}
-            textAlign={m.from === this.props.state.user.id ? 'right' : 'left'}
+            key={m.localId}
+            textAlign={m.sender === this.props.state.user.id ? 'right' : 'left'}
           >
-            <Message own={m.from === this.props.state.user.id}>
+            <Message own={m.sender === this.props.state.user.id}>
               {m.message}
             </Message>
           </glamorous.Div>),

@@ -206,7 +206,7 @@ export default class AppState {
     this.sock.on('connectionError', () => this.setConnectionState(ConnectionState.WS_ERROR));
     this.sock.on('statusUpdate', data => this.setFriendStatus(data.id, data.status));
     this.sock.on('inputBufferUpdate', data => this.setRemoteInput(data.id, data.value));
-    this.sock.on('message', data => this.addMessage(data.from, data.message));
+    this.sock.on('message', data => this.addReceivedMessage(data.sender, data.id, data.message));
     this.sock.connect();
   }
 
@@ -275,42 +275,61 @@ export default class AppState {
   }
 
   @action
-  sendMessage(id, message) {
-    const messageId = uniqueId('msg-sent-');
-    if (!this.messages.has(id.toString())) {
-      this.messages.set(id.toString(), []);
-    }
+  sendMessage(target, message) {
+    const localId = this.addMessage(
+      'msg-local-sent-',
+      target.toString(),
+      null,
+      this.user.id,
+      target,
+      message,
+    );
 
-    this.messages
-      .get(id.toString())
-      .push({ messageId, from: this.user.id, target: id, sent: false, message });
+    const conversation = this.messages.get(target.toString());
 
     fetch(`${API_URL}/send`, {
       method: 'POST',
-      body: JSON.stringify({ auth_token: this.authToken, id, message }),
+      body: JSON.stringify({ auth_token: this.authToken, target, message }),
+    }).then((r) => {
+      if (r.status === 200) {
+        r.json().then((j) => {
+          const msg = conversation.find(i => i.localId === localId);
+          console.dir(JSON.stringify(msg));
+          msg.remoteId = j.id;
+          console.dir(JSON.stringify(msg));
+        });
+      }
     });
   }
 
   @action
-  addMessage(id, message) {
-    if (!this.messages.has(id.toString())) {
-      this.messages.set(id.toString(), []);
+  addMessage(localIdKey, convoId, remoteId, sender, target, message) {
+    const localId = uniqueId(localIdKey);
+    if (!this.messages.has(convoId.toString())) {
+      this.messages.set(convoId.toString(), []);
     }
-    this.messages
-      .get(id.toString())
-      .push({ messageId: uniqueId('msg-received-'), from: id, target: this.user.id, message });
+    this.messages.get(convoId.toString()).push({
+      localId,
+      remoteId,
+      sender,
+      target,
+      message,
+    });
+    return localId;
   }
 
   @action
-  markMessageAsSent(id, messageId) {
-    const msg = this.messages.get(id.toString()).find(m => m.messageId === messageId);
-    if (msg != null) msg.sent = true;
+  addReceivedMessage(sender, remoteId, message) {
+    this.addMessage('msg-local-received-', sender, remoteId, sender, this.user.id, message);
   }
 
   remoteInput = observable.map({});
 
   @action
   setRemoteInput(id, message) {
+    if (id !== this.activeChat) {
+      if (message.trim().length > 0) if (this.unread.indexOf(id) === -1) this.unread.push(id);
+    }
     this.remoteInput.set(id.toString(), message);
   }
 
@@ -324,4 +343,6 @@ export default class AppState {
   setInput(id, message) {
     this.sock.setInput(id, message);
   }
+
+  @observable unread = [];
 }
