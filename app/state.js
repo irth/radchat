@@ -1,8 +1,6 @@
 import { observable, action, computed } from 'mobx';
 import { persist } from 'mobx-persist';
 
-import uniqueId from 'lodash.uniqueid';
-
 export const API_URL = 'http://localhost:3000';
 export const WS_URL = 'ws://localhost:3000/socket';
 
@@ -313,12 +311,12 @@ export default class AppState {
 
   @action
   fetchMessages(target, count = 10, before = undefined) {
-    fetch(
+    return fetch(
       `${API_URL}/history?auth_token=${this
         .authToken}&friend=${target}&count=${count}&before=${before || ''}`,
     ).then((r) => {
       if (r.status === 200) {
-        r.json().then(msgs =>
+        return r.json().then(msgs =>
           msgs.forEach((m) => {
             this.addMessage(
               'msg-remote-',
@@ -332,6 +330,7 @@ export default class AppState {
           }),
         );
       }
+      return null;
     });
   }
 
