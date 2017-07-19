@@ -206,7 +206,9 @@ export default class AppState {
     this.sock.on('connectionError', () => this.setConnectionState(ConnectionState.WS_ERROR));
     this.sock.on('statusUpdate', data => this.setFriendStatus(data.id, data.status));
     this.sock.on('inputBufferUpdate', data => this.setRemoteInput(data.id, data.value));
-    this.sock.on('message', data => this.addReceivedMessage(data.sender, data.id, data.message));
+    this.sock.on('message', data =>
+      this.addReceivedMessage(data.sender, data.id, data.timestamp, data.message),
+    );
     this.sock.connect();
   }
 
@@ -269,7 +271,13 @@ export default class AppState {
   @computed
   get activeChatMessages() {
     if (this.activeChat != null && this.messages.has(this.activeChat.toString())) {
-      return this.messages.get(this.activeChat.toString());
+      return this.messages.get(this.activeChat.toString()).sort((a, b) => {
+        if (a.remoteId == null && b.remoteId == null) return a.localId - b.localId;
+        if (a.remoteId == null) return 1;
+        if (b.remoteId == null) return -1;
+
+        return a.remoteId - b.remoteId;
+      });
     }
     return [];
   }
@@ -282,6 +290,7 @@ export default class AppState {
       null,
       this.user.id,
       target,
+      Date.now(),
       message,
     );
 
@@ -303,24 +312,69 @@ export default class AppState {
   }
 
   @action
-  addMessage(localIdKey, convoId, remoteId, sender, target, message) {
-    const localId = uniqueId(localIdKey);
+  fetchMessages(target, count = 10, before = undefined) {
+    fetch(
+      `${API_URL}/history?auth_token=${this
+        .authToken}&friend=${target}&count=${count}&before=${before || ''}`,
+    ).then((r) => {
+      if (r.status === 200) {
+        r.json().then(msgs =>
+          msgs.forEach((m) => {
+            this.addMessage(
+              'msg-remote-',
+              m.sender === this.user.id ? m.target : m.sender,
+              m.id,
+              m.sender,
+              m.target,
+              m.timestamp,
+              m.message,
+            );
+          }),
+        );
+      }
+    });
+  }
+
+  lastLocalId = 0;
+
+  @action
+  addMessage(localIdKey, convoId, remoteId, sender, target, timestamp, message) {
+    this.lastLocalId += 1;
+    const localId = this.lastLocalId;
     if (!this.messages.has(convoId.toString())) {
       this.messages.set(convoId.toString(), []);
     }
+
+    if (
+      remoteId != null &&
+      this.messages.get(convoId.toString()).findIndex(m => m.remoteId === remoteId) !== -1
+    ) {
+      return -1;
+    }
+
     this.messages.get(convoId.toString()).push({
       localId,
       remoteId,
       sender,
       target,
+      timestamp,
       message,
     });
     return localId;
   }
 
   @action
-  addReceivedMessage(sender, remoteId, message) {
-    this.addMessage('msg-local-received-', sender, remoteId, sender, this.user.id, message);
+  addReceivedMessage(sender, remoteId, timestamp, message) {
+    console.warn(message);
+    this.addMessage(
+      'msg-local-received-',
+      sender,
+      remoteId,
+      sender,
+      this.user.id,
+      timestamp,
+      message,
+    );
   }
 
   remoteInput = observable.map({});
